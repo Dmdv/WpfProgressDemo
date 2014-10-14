@@ -59,6 +59,8 @@ namespace CommonExtensions
 			OnReport(value);
 		}
 
+		public bool IsCancellationPending { get; set; }
+
 		public void OnCompleted(object state)
 		{
 			_asyncOperation.PostOperationCompleted(_onCompletedCallback, state);

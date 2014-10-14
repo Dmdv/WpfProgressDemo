@@ -12,11 +12,21 @@ namespace ProgressDemo
 			InitializeComponent();
 		}
 
+		private static void DoUnitOfWork()
+		{
+			Thread.Sleep(500);
+		}
+
 		private void FiniteActionWithReport(CommonExtensions.IProgress<double> progress)
 		{
 			for (var idx = 0; idx < 10; idx++)
 			{
-				Thread.Sleep(500);
+				if (progress.IsCancellationPending)
+				{
+					return;
+				}
+
+				DoUnitOfWork();
 				progress.Report(idx);
 			}
 		}
@@ -25,7 +35,7 @@ namespace ProgressDemo
 		{
 			for (var idx = 0; idx < 10; idx++)
 			{
-				Thread.Sleep(500);
+				DoUnitOfWork();
 			}
 		}
 
@@ -33,7 +43,12 @@ namespace ProgressDemo
 		{
 			for (var idx = 0; idx < 10; idx++)
 			{
-				Thread.Sleep(500);
+				if (progress.IsCancellationPending)
+				{
+					return;
+				}
+
+				DoUnitOfWork();
 				progress.Report(idx);
 			}
 		}

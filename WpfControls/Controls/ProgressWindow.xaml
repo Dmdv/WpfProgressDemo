@@ -120,7 +120,8 @@
                                                    Margin="1,1,0,1" RadiusY="1" RadiusX="1" Grid.RowSpan="2" />
                                         <Rectangle x:Name="RightDark" Grid.Column="2"
                                                    Fill="{StaticResource ProgressBarIndicatorDarkEdgeRight}"
-                                                   Margin="0,1,1,1" RadiusY="1" RadiusX="1" Grid.Row="0" Grid.RowSpan="2" />
+                                                   Margin="0,1,1,1" RadiusY="1" RadiusX="1" Grid.Row="0"
+                                                   Grid.RowSpan="2" />
                                         <Rectangle x:Name="LeftLight" Grid.Column="0"
                                                    Fill="{StaticResource ProgressBarIndicatorLightingEffectLeft}"
                                                    Grid.Row="1" />
@@ -190,5 +191,10 @@
                    Text="Текущее значение: {0}..."
                    VerticalAlignment="Center"
                    Margin="10,0" />
+
+        <Button x:Name="_cancelButtonControl" Click="OnCancelClick"
+                Content="Отмена..."
+                HorizontalAlignment="Right"
+                Grid.Row="2" Width="94.623" Margin="0,0,10,5" />
     </Grid>
 </Window>

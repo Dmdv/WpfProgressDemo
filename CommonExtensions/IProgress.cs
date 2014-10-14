@@ -2,6 +2,8 @@ namespace CommonExtensions
 {
 	public interface IProgress<in T>
 	{
+		bool IsCancellationPending { get; set; }
+
 		void OnCompleted(object state);
 
 		/// <summary>

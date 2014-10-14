@@ -16,27 +16,38 @@ namespace WpfControls.Controls
 			Topmost = true;
 			ShowInTaskbar = false;
 			FormattedMessage = "Current value: {0}";
+			WindowTitle = "Подождите...";
+			CanBeCanceled = true;
+			ShowDescription = true;
+		}
+
+		public bool CanBeCanceled
+		{
+			get { return _cancelButtonControl.Visibility == Visibility.Visible; }
+			set { _cancelButtonControl.Visibility = value ? Visibility.Visible : Visibility.Collapsed; }
 		}
 
 		public string FormattedMessage { get; set; }
 
-		public bool ShowLabel
+		public bool ShowDescription
 		{
-			get { return _showLabel; }
-			set
-			{
-				_showLabel = value;
-				_textControl.Visibility = _showLabel ? Visibility.Visible : Visibility.Collapsed;
-			}
+			get { return _textControl.Visibility == Visibility.Visible; }
+			set { _textControl.Visibility = value ? Visibility.Visible : Visibility.Collapsed; }
+		}
+
+		public string WindowTitle
+		{
+			get { return Title; }
+			set { Title = value; }
 		}
 
 		public void Run(Action<CommonExtensions.IProgress<double>> action, double maximum)
 		{
 			SetupProgressBar(maximum);
 
-			CommonExtensions.IProgress<double> progress = new CommonExtensions.Progress<double>(ReportProgress, Close);
+			_currentTask = new CommonExtensions.Progress<double>(ReportProgress, Close);
 
-			Task.Run(() => action(progress)).GetAwaiter().OnCompleted(() => progress.OnCompleted(null));
+			Task.Run(() => action(_currentTask)).GetAwaiter().OnCompleted(() => _currentTask.OnCompleted(null));
 
 			ShowDialog();
 		}
@@ -45,22 +56,23 @@ namespace WpfControls.Controls
 		{
 			SetupProgressBar();
 
-			var progress = new CommonExtensions.Progress<double>(ReportProgress, Close);
+			_currentTask = new CommonExtensions.Progress<double>(ReportProgress, Close);
 
-			Task.Run(() => action(progress)).GetAwaiter().OnCompleted(() => progress.OnCompleted(null));
+			Task.Run(() => action(_currentTask)).GetAwaiter().OnCompleted(() => _currentTask.OnCompleted(null));
 
 			ShowDialog();
 		}
 
 		public void Run(Action action)
 		{
-			ShowLabel = false;
+			ShowDescription = false;
+			CanBeCanceled = false;
 
 			SetupProgressBar();
 
-			var progress = new CommonExtensions.Progress<double>(Close);
+			_currentTask = new CommonExtensions.Progress<double>(Close);
 
-			Task.Run(action).GetAwaiter().OnCompleted(() => progress.OnCompleted(null));
+			Task.Run(action).GetAwaiter().OnCompleted(() => _currentTask.OnCompleted(null));
 
 			ShowDialog();
 		}
@@ -69,6 +81,14 @@ namespace WpfControls.Controls
 		{
 			Hide();
 			Close();
+		}
+
+		private void OnCancelClick(object sender, RoutedEventArgs e)
+		{
+			if (_currentTask != null)
+			{
+				_currentTask.IsCancellationPending = true;
+			}
 		}
 
 		private void ReportProgress(double value)
@@ -91,6 +111,6 @@ namespace WpfControls.Controls
 			_progressControl.Value = 0;
 		}
 
-		private bool _showLabel;
+		private CommonExtensions.IProgress<double> _currentTask;
 	}
 }
