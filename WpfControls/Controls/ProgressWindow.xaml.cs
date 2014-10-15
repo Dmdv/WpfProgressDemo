@@ -19,6 +19,7 @@ namespace WpfControls.Controls
 			WindowTitle = "Подождите...";
 			CanBeCanceled = true;
 			ShowDescription = true;
+			IsCancelled = false;
 		}
 
 		public bool CanBeCanceled
@@ -28,6 +29,8 @@ namespace WpfControls.Controls
 		}
 
 		public string FormattedMessage { get; set; }
+
+		public bool IsCancelled { get; set; }
 
 		public bool ShowDescription
 		{
@@ -85,6 +88,8 @@ namespace WpfControls.Controls
 
 		private void OnCancelClick(object sender, RoutedEventArgs e)
 		{
+			IsCancelled = true;
+
 			if (_currentTask != null)
 			{
 				_currentTask.IsCancellationPending = true;
