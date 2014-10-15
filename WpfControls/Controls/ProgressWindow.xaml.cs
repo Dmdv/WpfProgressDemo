@@ -88,12 +88,16 @@ namespace WpfControls.Controls
 		{
 			_currentTask = new CommonExtensions.Progress<double>(ReportProgress, Close);
 			Task.Run(() => action(_currentTask)).GetAwaiter().OnCompleted(() => _currentTask.OnCompleted(null));
+			//await Task.Run(() => action(_currentTask));
+			//_currentTask.OnCompleted(null);
 		}
 
 		private void RunTask(Action action)
 		{
 			_currentTask = new CommonExtensions.Progress<double>(Close);
 			Task.Run(action).GetAwaiter().OnCompleted(() => _currentTask.OnCompleted(null));
+			//await Task.Run(action);
+			//_currentTask.OnCompleted(null);
 		}
 
 		private void SetupProgressBar(double? maximum = null)
