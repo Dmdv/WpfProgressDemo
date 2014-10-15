@@ -44,25 +44,10 @@ namespace WpfControls.Controls
 			set { Title = value; }
 		}
 
-		public void Run(Action<CommonExtensions.IProgress<double>> action, double maximum)
+		public void Run(Action<CommonExtensions.IProgress<double>> action, double? maximum = null)
 		{
 			SetupProgressBar(maximum);
-
-			_currentTask = new CommonExtensions.Progress<double>(ReportProgress, Close);
-
-			Task.Run(() => action(_currentTask)).GetAwaiter().OnCompleted(() => _currentTask.OnCompleted(null));
-
-			ShowDialog();
-		}
-
-		public void Run(Action<CommonExtensions.IProgress<double>> action)
-		{
-			SetupProgressBar();
-
-			_currentTask = new CommonExtensions.Progress<double>(ReportProgress, Close);
-
-			Task.Run(() => action(_currentTask)).GetAwaiter().OnCompleted(() => _currentTask.OnCompleted(null));
-
+			RunTask(action);
 			ShowDialog();
 		}
 
@@ -72,11 +57,7 @@ namespace WpfControls.Controls
 			CanBeCanceled = false;
 
 			SetupProgressBar();
-
-			_currentTask = new CommonExtensions.Progress<double>(Close);
-
-			Task.Run(action).GetAwaiter().OnCompleted(() => _currentTask.OnCompleted(null));
-
+			RunTask(action);
 			ShowDialog();
 		}
 
@@ -103,15 +84,22 @@ namespace WpfControls.Controls
 			_progressControl.Value = value;
 		}
 
-		private void SetupProgressBar()
+		private void RunTask(Action<CommonExtensions.IProgress<double>> action)
 		{
-			_progressControl.IsIndeterminate = true;
+			_currentTask = new CommonExtensions.Progress<double>(ReportProgress, Close);
+			Task.Run(() => action(_currentTask)).GetAwaiter().OnCompleted(() => _currentTask.OnCompleted(null));
 		}
 
-		private void SetupProgressBar(double maximum)
+		private void RunTask(Action action)
 		{
-			_progressControl.IsIndeterminate = false;
-			_progressControl.Maximum = maximum;
+			_currentTask = new CommonExtensions.Progress<double>(Close);
+			Task.Run(action).GetAwaiter().OnCompleted(() => _currentTask.OnCompleted(null));
+		}
+
+		private void SetupProgressBar(double? maximum = null)
+		{
+			_progressControl.IsIndeterminate = !maximum.HasValue;
+			_progressControl.Maximum = maximum.HasValue ? maximum.Value : 0;
 			_progressControl.Minimum = 0;
 			_progressControl.Value = 0;
 		}
