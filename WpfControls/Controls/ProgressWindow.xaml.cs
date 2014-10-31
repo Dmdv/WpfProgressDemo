@@ -1,6 +1,9 @@
 ﻿using System;
+using System.ComponentModel;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Threading;
 
 namespace WpfControls.Controls
 {
@@ -9,19 +12,6 @@ namespace WpfControls.Controls
 	/// </summary>
 	public partial class ProgressWindow
 	{
-		public ProgressWindow()
-		{
-			InitializeComponent();
-
-			Topmost = true;
-			ShowInTaskbar = false;
-			FormattedMessage = "Current value: {0}";
-			WindowTitle = "Подождите...";
-			CanBeCanceled = true;
-			ShowDescription = true;
-			IsCancelled = false;
-		}
-
 		public bool CanBeCanceled
 		{
 			get { return _cancelButtonControl.Visibility == Visibility.Visible; }
@@ -44,60 +34,168 @@ namespace WpfControls.Controls
 			set { Title = value; }
 		}
 
-		public void Run(Action<CommonExtensions.IProgress<double>> action, double? maximum = null)
+		public static void Run(
+			Action action,
+			string formattedMessage = null,
+			bool showDescription = false,
+			string title = "Wait...")
 		{
-			SetupProgressBar(maximum);
-			RunTask(action);
-			ShowDialog();
+			CreateStaThread(_ =>
+			{
+				var progress = new ProgressWindow
+				{
+					ShowDescription = showDescription,
+					CanBeCanceled = false,
+					FormattedMessage = formattedMessage,
+					WindowTitle = title
+				};
+
+				progress.RunInternal(action);
+			});
 		}
 
-		public void Run(Action action)
+		public static void Run(
+			Action<CommonExtensions.IProgress<double>> action,
+			string formattedMessage = null,
+			double? maximum = null,
+			bool showDescription = false,
+			bool canBeCancelled = true,
+			string title = "Wait...")
 		{
-			ShowDescription = false;
-			CanBeCanceled = false;
+			CreateStaThread(_ =>
+			{
+				var progress = new ProgressWindow
+				{
+					ShowDescription = showDescription,
+					CanBeCanceled = canBeCancelled,
+					FormattedMessage = formattedMessage,
+					WindowTitle = title
+				};
 
-			SetupProgressBar();
-			RunTask(action);
-			ShowDialog();
+				progress.RunInternal(action, maximum);
+			});
+		}
+
+		public static void RunModal(
+			Action action,
+			string formattedMessage = null,
+			bool showDescription = false,
+			string title = "Wait...")
+		{
+			var progress = new ProgressWindow
+			{
+				ShowDescription = showDescription,
+				CanBeCanceled = false,
+				FormattedMessage = formattedMessage,
+				WindowTitle = title
+			};
+
+			progress.RunInternal(action);
+		}
+
+		public static void RunModal(
+			Action<CommonExtensions.IProgress<double>> action,
+			string formattedMessage = null,
+			double? maximum = null,
+			bool showDescription = false,
+			bool canBeCancelled = true,
+			string title = "Wait...")
+		{
+			var progress = new ProgressWindow
+			{
+				ShowDescription = showDescription,
+				CanBeCanceled = canBeCancelled,
+				FormattedMessage = formattedMessage,
+				WindowTitle = title
+			};
+
+			progress.RunInternal(action, maximum);
+		}
+
+		private static void CreateStaThread(ParameterizedThreadStart parameterizedThreadStart)
+		{
+			var thread = new Thread(parameterizedThreadStart);
+			thread.SetApartmentState(ApartmentState.STA);
+			thread.IsBackground = true;
+			thread.Start();
 		}
 
 		private void Close(object state)
 		{
+			_currenTask.Wait();
+			Thread.Sleep(1000);
 			Hide();
 			Close();
+			_closeReadyEvent.Set();
+		}
+
+		private void CreateBackgroundAction(Action action)
+		{
+			_currentProgress = new CommonExtensions.Progress<double>(Close);
+
+			_currenTask = Task.Factory
+				.StartNew(action)
+				.ContinueWith(_ => _currentProgress.OnCompleted(null));
+		}
+
+		private void CreateBackgroundAction(Action<CommonExtensions.IProgress<double>> action)
+		{
+			_currentProgress = new CommonExtensions.Progress<double>(ReportProgress, Close);
+
+			_currenTask = Task.Factory
+				.StartNew(() => action(_currentProgress))
+				.ContinueWith(_ => _currentProgress.OnCompleted(null));
 		}
 
 		private void OnCancelClick(object sender, RoutedEventArgs e)
 		{
+			Action action = () => UpdateMessage("Cancel operation...");
+			Dispatcher.BeginInvoke(DispatcherPriority.Normal, action);
+
 			IsCancelled = true;
 
-			if (_currentTask != null)
+			if (_currentProgress != null)
 			{
-				_currentTask.IsCancellationPending = true;
+				_currentProgress.IsCancellationPending = true;
+			}
+		}
+
+		private void OnCloseWindow(object sender, CancelEventArgs e)
+		{
+			if (!IsCancelled)
+			{
+				e.Cancel = true;
+				OnCancelClick(sender, null);
 			}
 		}
 
 		private void ReportProgress(double value)
 		{
-			_textControl.Text = string.Format(FormattedMessage, value);
-			_progressControl.Tag = string.Format(FormattedMessage, value);
 			_progressControl.Value = value;
+
+			if (IsCancelled)
+			{
+				UpdateMessage(string.Format(FormattedMessage, value) + "... Cancel operation...");
+			}
+			else
+			{
+				UpdateMessage(string.Format(FormattedMessage, value));
+			}
 		}
 
-		private void RunTask(Action<CommonExtensions.IProgress<double>> action)
+		private void RunInternal(Action action)
 		{
-			_currentTask = new CommonExtensions.Progress<double>(ReportProgress, Close);
-			Task.Run(() => action(_currentTask)).GetAwaiter().OnCompleted(() => _currentTask.OnCompleted(null));
-			//await Task.Run(() => action(_currentTask));
-			//_currentTask.OnCompleted(null);
+			SetupProgressBar();
+			_action = () => CreateBackgroundAction(action);
+			ShowDialog();
 		}
 
-		private void RunTask(Action action)
+		private void RunInternal(Action<CommonExtensions.IProgress<double>> action, double? maximum = null)
 		{
-			_currentTask = new CommonExtensions.Progress<double>(Close);
-			Task.Run(action).GetAwaiter().OnCompleted(() => _currentTask.OnCompleted(null));
-			//await Task.Run(action);
-			//_currentTask.OnCompleted(null);
+			SetupProgressBar(maximum);
+			_action = () => CreateBackgroundAction(action);
+			ShowDialog();
+			_closeReadyEvent.WaitOne();
 		}
 
 		private void SetupProgressBar(double? maximum = null)
@@ -108,6 +206,39 @@ namespace WpfControls.Controls
 			_progressControl.Value = 0;
 		}
 
-		private CommonExtensions.IProgress<double> _currentTask;
+		private void UpdateMessage(string message)
+		{
+			_textControl.Text = message;
+			_progressControl.Tag = message;
+		}
+
+		private ProgressWindow()
+		{
+			InitializeComponent();
+
+			Topmost = true;
+			ShowInTaskbar = false;
+			FormattedMessage = "Current value: {0}";
+			WindowTitle = "Подождите...";
+			CanBeCanceled = true;
+			ShowDescription = true;
+			IsCancelled = false;
+
+			Loaded += (o, args) =>
+			{
+				_closeReadyEvent = new AutoResetEvent(false);
+				UpdateMessage("Prepare...");
+
+				if (_action != null)
+				{
+					_action();
+				}
+			};
+		}
+
+		private Action _action;
+		private AutoResetEvent _closeReadyEvent;
+		private Task _currenTask;
+		private CommonExtensions.IProgress<double> _currentProgress;
 	}
 }
